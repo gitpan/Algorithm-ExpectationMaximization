@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Algorithm-ExpectationMaximization
-version:            1.0
+version:            1.1
 abstract:           A pure-Perl implementation of the Expectation Maximization Algoirthm
 author:
     - Avinash Kak (kak@purdue.edu)

@@ -19,7 +19,7 @@ use Math::Random;
 use Graphics::GnuplotIF;
 use Math::GSL::Matrix;
 
-our $VERSION = '1.0';
+our $VERSION = '1.1';
 
 # from perl docs:
 my $_num_regex =  '^[+-]?\ *(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$'; 
@@ -108,21 +108,13 @@ sub read_data_from_file {
     srand(123456789);
 }
 
-# Assuming that the data can be modeled by a Gaussian mixture, data clustering by the
-# EM algorithm consists of iterative computations of the following two main steps:
-# (1) the Expectation Step; and (2) the Maximization Step. For the very first pass
-# through the two steps, one usually starts with making random assumptions for the
-# means, with the covariances calculated from the entire data with respect to those
-# means.  The Expectation Step consists of estimating the posterior class
-# probabilities at each of the data points.  The Maximization Step then constructs ML
-# (maximum likelihood) estimates for the means, the covariances, and the priors for
-# the individual Gaussians on the basis of the posterior class probabilities produced
-# by the Expectation Step.  In the next iteration through the two steps, we use the
-# freshly updated Gaussians to re-calculate the posterior class probabilities at each
-# of the data points, and so on, until we achieve convergence.  In the implementation
-# shown below, we declare convergence when the change in the class priors over three
-# iterations falls below a threshold.  The current value of this threshold, as can be
-# seen in the function compare_array_floats(), is 0.00001.
+
+# This is the heart of the module --- in the sense that this method implements the EM
+# algorithm for the estimating the parameters of a Gaussian mixture model for the
+# data. In the implementation shown below, we declare convergence for the EM
+# algorithm when the change in the class priors over three iterations falls below a
+# threshold.  The current value of this threshold, as can be seen in the function
+# compare_array_floats(), is 0.00001.
 sub EM {
     my $self = shift;
     $self->initialize_class_priors();
@@ -136,7 +128,6 @@ sub EM {
         }
         my $progress_indicator = $em_iteration % 5 == 0 ? $em_iteration : ".";
         print $progress_indicator;
-        #                        THE EXPECTATION STEP:
         foreach my $data_id (@{$self->{_data_id_tags}}) {
             $self->{_class_probs_at_each_data_point}->{$data_id} = [];
             $self->{_expected_class_probs}->{$data_id} = [];
@@ -169,7 +160,6 @@ sub EM {
                 print "Expected classes $data_id: @$expected_classes_at_a_point\n";
             }
         }
-        #                          THE MAXIMIZATION STEP:
         # 1. UPDATE MEANS:        
         my @new_means;
         foreach my $cluster_index(0..$self->{_K}-1) {         
@@ -652,7 +642,9 @@ sub find_seed_centered_covariances {
 # For example, when the clusters in your data are non-overlapping and not too
 # anisotropic, the kmeans based seeding should work at least as well as the random
 # seeding.  In such cases --- AND ONLY IN SUCH CASES --- the kmeans based seeding has
-# the advantage of avoiding the local-minimum problem of the EM algorithm.
+# the advantage of avoiding the getting stuck in a local-maximum problem of the EM
+# algorithm.
+
 sub seed_the_clusters {
     my $self = shift;
     if ($self->{_seeding} eq 'random') {
@@ -1219,7 +1211,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visulization mask size exceeds data record size\n" 
+        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1354,7 +1346,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visulization mask size exceeds data record size\n" 
+        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1492,7 +1484,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visulization mask size exceeds data record size\n" 
+        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1635,7 +1627,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visulization mask size exceeds data record size\n" 
+        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1738,7 +1730,7 @@ sub visualize_data {
     my $data_source = $self->{_data};
     while ( my ($record_id, $data) = each %{$data_source} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visulization mask size exceeds data record size\n" 
+        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1808,7 +1800,7 @@ sub plot_hardcopy_data {
     my $data_source = $self->{_data};
     while ( my ($record_id, $data) = each %{$data_source} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visulization mask size exceeds data record size\n" 
+        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1866,7 +1858,7 @@ sub plot_hardcopy_data {
 #  The data generated corresponds to a multivariate distribution.  The mean and the
 #  covariance of each Gaussian in the distribution are specified individually in a
 #  parameter file. The parameter file must also state the prior probabilities to be
-#  associated with each Gaussian.  See the example parameter file param.txt in the
+#  associated with each Gaussian.  See the example parameter file param1.txt in the
 #  examples directory.  Just edit this file for your own needs.
 #
 #  The multivariate random numbers are generated by calling the Math::Random module.
@@ -2404,10 +2396,10 @@ numerical multi-dimensional data with the Expectation-Maximization algorithm.
   #  Note the choice for `seeding'. The choice `random' means that the clusterer will
   #  randomly select `K' data points to serve as initial cluster centers.  Other
   #  possible choices for the constructor parameter `seeding' are `kmeans' and
-  #  `manual'.  With the `kmeans' option for `seeding', a K-means cluster is used for
-  #  the cluster seeds and initial cluster covariances.  If you use the `manual'
-  #  option for seeding, you must also specify the data elements to use for seeding
-  #  the clusters.
+  #  `manual'.  With the `kmeans' option for `seeding', the output of a K-means
+  #  clusterer is used for the cluster seeds and the initial cluster covariances.  If
+  #  you use the `manual' option for seeding, you must also specify the data elements
+  #  to use for seeding the clusters.
 
   #  Here is an example of a call to the constructor when we choose the `manual'
   #  option for seeding the clusters and for specifying the data elements for
@@ -2462,7 +2454,7 @@ numerical multi-dimensional data with the Expectation-Maximization algorithm.
   #  If you would like to also see the clusters purely on the basis of the posterior
   #  class probabilities exceeding a threshold, call
 
-  my $theta1 = 0.5;
+  my $theta1 = 0.2;
   my $posterior_prob_clusters =
            $clusterer->return_clusters_with_posterior_probs_above_threshold($theta1);
 
@@ -2541,6 +2533,14 @@ numerical multi-dimensional data with the Expectation-Maximization algorithm.
   $clusterer->plot_hardcopy_data($data_visualization_mask);
 
 
+=head1 CHANGES
+
+Version 1.1 incorporates much cleanup of the documentation associated with the
+module.  Both the top-level module documentation, especially the Description part,
+and the comments embedded in the code were revised for better utilization of the
+module.  The basic implementation code remains unchanged.
+
+
 =head1 DESCRIPTION
 
 B<Algorithm::ExpectationMaximization> is a I<perl5> module for the
@@ -2564,7 +2564,7 @@ belong to a Gaussian component on the basis of the posterior class probabilities
 the data elements exceeding a prescribed threshold.
 
 If you do not mind the fact that it is possible for the EM algorithm to occasionally
-get stuck in a local minimum and to, therefore, produce a wrong answer even when you
+get stuck in a local maximum and to, therefore, produce a wrong answer even when you
 know the data to be perfectly multimodal Gaussian, EM is probably the most magical
 approach to clustering multidimensional data.  Consider the case of clustering
 three-dimensional data.  Each Gaussian cluster in 3D space is characterized by the
@@ -2578,24 +2578,28 @@ the clusters in your data.  What's amazing is that despite the large number of
 variables that are being simultaneously optimized, the chances are that the EM
 algorithm will give you a good approximation to the right answer.
 
-Clustering with the EM algorithm consists of iterating through the following two
-steps: B<1. The Expectation Step:> In this step, we estimate the posterior class
-probabilities at each data element; these constitute our expectations regarding the
-class labels at each data element.  Bayes' Rule is used to express the posterior
-probabilities in terms of the distributions functions for the individual Gaussians
-and the priors associated with them.  B<2. The Maximization Step:> Given the
-posterior class probabilities returned by the Expectation step, we now construct the
-maximum likelihood estimates for the means, the covariances, and the priors
-associated with the different Gaussians.  Note that the first step requires that we
-have available to us the class priors and the parameters for the different Gaussians.
-In other words, in addition to the class priors, we must have the estimates for the
-means and the covariances of the C<K> different Gaussians in order the calculate the
-posterior class probabilities in the Expectation Step.  After the iterations have
-begun, that is exactly the information given to us by the Maximization step.  But
-what does one do for the very first invocation of the Expectation Step?  That is,
-when the Expectation Step is invoked for the very first time, what Gaussian
-distributions should we use for the the C<K> different clusters?  That takes us to
-the subject of "seeding" the EM algorithm.
+At its core, EM depends on the notion of unobserved data and the averaging of the
+log-likelihood of the data actually observed over all admissible probabilities for
+the unobserved data.  But what is unobserved data?  While in some cases where EM is
+used, the unobserved data is literally the missing data, in others, it is something
+that cannot be seen directly but that nonetheless is relevant to the data actually
+observed. For the case of clustering multidimensional numerical data that can be
+modeled as a Gaussian mixture, it turns out that the best way to think of the
+unobserved data is in terms of a sequence of random variables, one for each observed
+data point, whose values dictate the selection of the Gaussian for that data point.
+This point is explained in great detail in my on-line tutorial at
+L<https://engineering.purdue.edu/kak/ExpectationMaximization.pdf>.
+
+The EM algorithm in our context reduces to an iterative invocation of the following
+steps: (1) Given the current guess for the means and the covariances of the different
+Gaussians in our mixture model, use Bayes' Rule to update the posterior class
+probabilities at each of the data points; (2) Using the updated posterior class
+probabilities, first update the class priors; (3) Using the updated class priors,
+update the class means and the class covariances; and go back to Step (1).  Ideally,
+the iterations should terminate when the expected log-likelihood of the observed data
+has reached a maximum and does not change with any further iterations.  The stopping
+rule used in this module is the detection of no change over three consecutive
+iterations in the values calculated for the priors.
 
 This module provides three different choices for seeding the clusters: (1) random,
 (2) kmeans, and (3) manual.  When random seeding is chosen, the algorithm randomly
@@ -2617,7 +2621,7 @@ to C<smart>.  The C<smart> option for KMeans consists of subjecting the data to 
 principal components analysis (PCA) to discover the direction of maximum variance in
 the data space.  The data points are then projected on to this direction and a
 histogram constructed from the projections.  Centers of the C<K> largest peaks in
-this smoothed histogram are used to seed the KMeans based clusterer.  And, as you'd
+this smoothed histogram are used to seed the KMeans based clusterer.  As you'd
 expect, the output of the KMeans used to seed the EM algorithm.
 
 This module uses two different criteria to measure the quality of the clustering
@@ -2643,11 +2647,6 @@ function, we incorporate the word C<fisher> in the name of the quality measure.
 I<Note that this measure is good only when the clusters are disjoint.> When the
 clusters exhibit significant overlap, the numbers produced by this quality measure
 tend to be generally meaningless.
-
-Every iterative algorithm requires a stopping criterion.
-The criterion implemented here is that we stop iterations
-when there is virtually no change in the values for the
-class priors as calculated by the Maximization Step.
 
 =head1 METHODS
 
@@ -3065,8 +3064,8 @@ points.
 
 =item I<canned_example2.pl>
 
-Ths datafile used in this example is C<mydatafile2.dat>.  This mixture data
-corresponds to two well-separated isotropic Gaussians.  EM based clustering for this
+The datafile used in this example is C<mydatafile2.dat>.  This mixture data
+corresponds to two well-separated relatively isotropic Gaussians.  EM based clustering for this
 data is shown in the files C<save_example_2_cluster_plot.png> and
 C<save_example_2_posterior_prob_plot.png>, the former displaying the hard clusters
 obtained by using the naive Bayes' classifier and the latter showing the soft
@@ -3087,7 +3086,7 @@ points.
 =item I<canned_example4.pl>
 
 Whereas the three previous examples demonstrated EM based clustering of 2D data, we
-now present an example of clustering in 3D.  Ths datafile used in this example is
+now present an example of clustering in 3D.  The datafile used in this example is
 C<mydatafile4.dat>.  This mixture data corresponds to three well-separated but highly
 anisotropic Gaussians. The EM derived clustering for this data is shown in the files
 C<save_example_4_cluster_plot.png> and C<save_example_4_posterior_prob_plot.png>, the
@@ -3098,7 +3097,7 @@ probabilities at the data points.
 =item I<canned_example5.pl>
 
 We again demonstrate clustering in 3D but now we have one Gaussian cluster that
-"cuts" through the other two Gaussian clusters.  Ths datafile used in this example is
+"cuts" through the other two Gaussian clusters.  The datafile used in this example is
 C<mydatafile5.dat>.  The three Gaussians in this case are highly overlapping and
 highly anisotropic.  The EM derived clustering for this data is shown in the files
 C<save_example_5_cluster_plot.png> and C<save_example_5_posterior_prob_plot.png>, the
@@ -3128,7 +3127,7 @@ file.
 When you run the scripts in the C<examples> directory, your results will NOT always
 look like what I have shown in the PNG image files in the directory.  As mentioned
 earlier in Description, the EM algorithm starting from randomly chosen initial
-guesses for the cluster means can get stuck in a local minimum.
+guesses for the cluster means can get stuck in a local maximum.
 
 That raises an interesting question of how one judges the correctness of clustering
 results when dealing with real experimental data.  For real data, the best approach
