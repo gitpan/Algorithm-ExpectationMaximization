@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-#use lib '../blib/lib', '../blib/arch';
+use lib '../blib/lib', '../blib/arch';
 
 use strict;
 use Algorithm::ExpectationMaximization;
@@ -20,14 +20,16 @@ use Algorithm::ExpectationMaximization;
 #my $parameter_file = "param3.txt";             #2D
 #my $parameter_file = "param4.txt";             #3D    
 #my $parameter_file = "param5.txt";             #3D    
-my $parameter_file = "param6.txt";             #3D    
+#my $parameter_file = "param6.txt";             #3D    
+my $parameter_file = "param7.txt";             #1D    
 
 #my $out_datafile = "mydatafile1.dat";
 #my $out_datafile = "mydatafile2.dat";
 #my $out_datafile = "mydatafile3.dat";
 #my $out_datafile = "mydatafile4.dat";
 #my $out_datafile = "mydatafile5.dat";
-my $out_datafile = "mydatafile6.dat";
+#my $out_datafile = "mydatafile6.dat";
+my $out_datafile = "mydatafile7.dat";
 
 Algorithm::ExpectationMaximization->cluster_data_generator( 
                         input_parameter_file => $parameter_file,

@@ -81,6 +81,19 @@ get the results that are shown in the PNG image files.  Here we go:
              save_example_5_posterior_prob_plot.png   (for soft clustering)
 
 
+6)  canned_example6.pl
+
+          This example was added in Version 1.2 to illustrate clustering
+          of 1-D data.
+
+          Unless your run gets trapped in a local maximum, your results
+          should look like those shown in the following image files:
+
+             save_example_6_cluster_plot.png          (for hard clustering)
+
+             save_example_6_posterior_prob_plot.png   (for soft clustering)
+
+
 
 ========================================================================
 

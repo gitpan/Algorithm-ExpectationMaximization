@@ -2,20 +2,20 @@
 
 #use lib '../blib/lib', '../blib/arch';
 
-### canned_example1.pl
+### canned_example6.pl
 
 use strict;
 use Algorithm::ExpectationMaximization;
 
+my $datafile = "mydatafile7.dat";
 
-my $datafile = "mydatafile1.dat";              # from param1.txt
 
-my $mask = "N11";    
+my $mask = "N1";    
 
 my $clusterer = Algorithm::ExpectationMaximization->new(
                                 datafile            => $datafile,
                                 mask                => $mask,
-                                K                   => 3,
+                                K                   => 2,
                                 max_em_iterations   => 300,
                                 seeding             => 'random',
                                 terminal_output     => 1,
@@ -24,7 +24,7 @@ my $clusterer = Algorithm::ExpectationMaximization->new(
 
 $clusterer->read_data_from_file();
 
-my $data_visualization_mask = "11";
+my $data_visualization_mask = "1";
 $clusterer->visualize_data($data_visualization_mask);
 $clusterer->plot_hardcopy_data($data_visualization_mask);
 
@@ -33,6 +33,7 @@ $clusterer->seed_the_clusters();
 $clusterer->EM();
 $clusterer->run_bayes_classifier();
 $clusterer->write_naive_bayes_clusters_to_files();
+
 
 my $clusters = $clusterer->return_disjoint_clusters();
 # Once you have the clusters in your own top-level script,
@@ -71,9 +72,10 @@ foreach my $index (0..@$class_distributions-1) {
 }
 print "----------------------------------------------------\n\n";
 
+
 # VISUALIZATION:
 
-my $visualization_mask = "11"; 
+my $visualization_mask = "1"; 
 
 $clusterer->visualize_clusters($visualization_mask);
 $clusterer->visualize_distributions($visualization_mask);

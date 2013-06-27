@@ -24,20 +24,14 @@ my $clusterer = Algorithm::ExpectationMaximization->new(
 
 $clusterer->read_data_from_file();
 
-##  Uncomment the NEXT FOUR lines if you just want to see the raw data:
-#my $data_visualization_mask = "111";
-#$clusterer->visualize_data($data_visualization_mask);
-#$clusterer->plot_hardcopy_data($data_visualization_mask);
-#__END__
+my $data_visualization_mask = "111";
+$clusterer->visualize_data($data_visualization_mask);
+$clusterer->plot_hardcopy_data($data_visualization_mask);
 
 srand(time);
-
 $clusterer->seed_the_clusters();
-
 $clusterer->EM();
-
 $clusterer->run_bayes_classifier();
-
 $clusterer->write_naive_bayes_clusters_to_files();
 
 my $clusters = $clusterer->return_disjoint_clusters();

@@ -1,7 +1,7 @@
 package Algorithm::ExpectationMaximization;
 
 #---------------------------------------------------------------------------
-# Copyright (c) 2012 Avinash Kak. All rights reserved.  This program is free
+# Copyright (c) 2013 Avinash Kak. All rights reserved.  This program is free
 # software.  You may modify and/or distribute it under the same terms as Perl itself.
 # This copyright notice must remain attached to the file.
 #
@@ -18,8 +18,9 @@ use File::Basename;
 use Math::Random;
 use Graphics::GnuplotIF;
 use Math::GSL::Matrix;
+use Scalar::Util 'blessed';
 
-our $VERSION = '1.1';
+our $VERSION = '1.2';
 
 # from perl docs:
 my $_num_regex =  '^[+-]?\ *(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$'; 
@@ -295,12 +296,21 @@ sub return_individual_class_distributions_above_given_threshold {
             my $datavec_minus_mean = $data_vec - $mean_vec;
             display_matrix( "datavec minus mean is ", $datavec_minus_mean )
                                     if $self->{_debug};
-            my $exponent = -0.5 * vector_matrix_multiply( 
-                                          transpose($datavec_minus_mean),
-                matrix_vector_multiply($covar->inverse(), $datavec_minus_mean ) );
-            print "\nThe value of the exponent is: $exponent\n\n" 
-                                        if $self->{_debug};
-            my $coefficient = 1.0 / ( (2 * $Math::GSL::Const::M_PI)**$self->{_data_dimensions} * sqrt($covar->det()) );
+            my $exponent = undef;
+            if ($self->{_data_dimensions} > 1) {
+                $exponent = -0.5 * vector_matrix_multiply( 
+                                               transpose($datavec_minus_mean),
+                                matrix_vector_multiply($covar->inverse(), $datavec_minus_mean ) );
+            } else {
+                my @var_inverse = $covar->inverse()->as_list;
+                my $var_inverse_val = $var_inverse[0];
+                my @data_minus_mean = $datavec_minus_mean->as_list;
+                my $data_minus_mean_val = $data_minus_mean[0];
+                $exponent = -0.5 * ($data_minus_mean_val ** 2) * $var_inverse_val;
+            }
+            print "\nThe value of the exponent is: $exponent\n\n" if $self->{_debug};
+            my $coefficient = 1.0 / \
+                 ( (2 * $Math::GSL::Const::M_PI)**$self->{_data_dimensions} * sqrt($covar->det()) );
             my $prob = $coefficient * exp($exponent);
             push @{$probability_distributions[$cluster_index]}, $data_id 
                 if $prob > $theta;
@@ -346,10 +356,19 @@ sub clustering_quality_mdl {
             my $data_vec = Math::GSL::Matrix->new($self->{_data_dimensions},1);
             $data_vec->set_col( 0, $self->{_data}->{$tag});
             my $datavec_minus_mean = $data_vec - $mean_vec;
-            my $exponent = -0.5 * vector_matrix_multiply( 
-                transpose($datavec_minus_mean),
-                matrix_vector_multiply($covar_inverses[$cluster_index], 
+            my $exponent = undef;
+            if ($self->{_data_dimensions} > 1) {
+                $exponent = -0.5 * vector_matrix_multiply( 
+                                       transpose($datavec_minus_mean),
+                                            matrix_vector_multiply($covar_inverses[$cluster_index], 
                                                        $datavec_minus_mean ) );
+            } else {
+                my @var_inverse = $covar_inverses[$cluster_index]->as_list;
+                my $var_inverse_val = $var_inverse[0];
+                my @data_minus_mean = $datavec_minus_mean->as_list;
+                my $data_minus_mean_val = $data_minus_mean[0];
+                $exponent = -0.5 * ($data_minus_mean_val ** 2) * $var_inverse_val;
+            }
             next if $covar->det() < 0;
             my $coefficient = 1.0 / 
                 ( (2 * $Math::GSL::Const::M_PI)**$self->{_data_dimensions} 
@@ -416,6 +435,7 @@ sub clustering_quality_fisher {
         $S_b +=  $self->{_class_priors}->[$cluster_index] * $outer_product;
     }
     my $fisher = matrix_multiply($S_w->inverse, $S_b);
+    return $fisher unless defined blessed($fisher);
     return matrix_trace($fisher);
 }
 
@@ -454,16 +474,34 @@ sub find_prob_at_each_datapoint_for_given_mean_and_covar {
             display_matrix("covariance in find prob function", $covar_ref);
         }
         my $datavec_minus_mean = $data_vec - $mean_vec_ref;
-        display_matrix( "datavec minus mean is ", $datavec_minus_mean )
-                                    if $self->{_debug};
-        my $exponent = -0.5 * vector_matrix_multiply( transpose($datavec_minus_mean),
-            matrix_vector_multiply( $covar_ref->inverse(), $datavec_minus_mean ) );
-        print "\nThe value of the exponent is: $exponent\n\n" 
-                                    if $self->{_debug};
-        my $coefficient = 1.0 / 
-                          ( (2 * 
-                          $Math::GSL::Const::M_PI)**$self->{_data_dimensions} * 
-                          sqrt($covar_ref->det()) );
+        display_matrix( "datavec minus mean is ", $datavec_minus_mean ) if $self->{_debug};
+        my $exponent = undef;
+        if ($self->{_data_dimensions} > 1) {
+            $exponent = -0.5 * vector_matrix_multiply( transpose($datavec_minus_mean),
+                matrix_vector_multiply( $covar_ref->inverse(), $datavec_minus_mean ) );
+        } elsif (defined blessed($covar_ref)) {
+            my @data_minus_mean = $datavec_minus_mean->as_list;
+            my $data_minus_mean_val = $data_minus_mean[0];
+            my @covar_as_matrix = $covar_ref->as_list;
+            my $covar_val = $covar_as_matrix[0];
+            $exponent = -0.5 * ($data_minus_mean_val ** 2) / $covar_val;
+        } else {
+            my @data_minus_mean = $datavec_minus_mean->as_list;
+            my $data_minus_mean_val = $data_minus_mean[0];
+            $exponent = -0.5 * ($data_minus_mean_val ** 2) / $covar_ref;
+        }
+        print "\nThe value of the exponent is: $exponent\n\n" if $self->{_debug};
+        my $coefficient = undef;
+        if ($self->{_data_dimensions} > 1) {
+            $coefficient = 1.0 / sqrt( ((2 * $Math::GSL::Const::M_PI) ** $self->{_data_dimensions}) * 
+                                                                                $covar_ref->det()) ;
+        } elsif (!defined blessed($covar_ref)) {
+            $coefficient =  1.0 / sqrt(2 * $covar_ref * $Math::GSL::Const::M_PI);
+        } else {         
+            my @covar_as_matrix = $covar_ref->as_list;
+            my $covar_val = $covar_as_matrix[0];
+            $coefficient =  1.0 / sqrt(2 * $covar_val * $Math::GSL::Const::M_PI);
+        }
         my $prob = $coefficient * exp($exponent);
         push @{$self->{_class_probs_at_each_data_point}->{$data_id}}, $prob;
     }
@@ -493,14 +531,14 @@ sub initialize_class_priors {
             push @{$self->{_class_priors}}, $prior;
         }
     }
-    croak "Mismatch between number of values for class priors " .
+    die "Mismatch between number of values for class priors " .
           "and the number of clusters expected"
         unless @{$self->{_class_priors}} == $self->{_K};
     my $sum = 0;
     foreach my $prior (@{$self->{_class_priors}}) {
         $sum += $prior;
     }
-    croak "Your priors in the constructor call do not add up to 1"  
+    die "Your priors in the constructor call do not add up to 1"  
                        unless abs($sum - 1) < 0.001;
     print "\nInitially assumed class priors are: @{$self->{_class_priors}}\n";
 }
@@ -551,10 +589,21 @@ sub classify_a_data_point_bayes {
         my $mean = $cluster_mean_vecs[$cluster_index];
         my $covariance =  $cluster_covariances[$cluster_index];
         my $datavec_minus_mean = $data_vec - $mean;
-        my $log_likely =   -0.5 * vector_matrix_multiply( 
-                 transpose($datavec_minus_mean), 
-                      matrix_vector_multiply( $covariance->inverse(), 
-                             $datavec_minus_mean ) );
+        my $log_likely = undef; 
+        if ($self->{_data_dimensions} > 1) {
+            $log_likely =   -0.5 * vector_matrix_multiply( 
+                                         transpose($datavec_minus_mean), 
+                                           matrix_vector_multiply( $covariance->inverse(), 
+                                                     $datavec_minus_mean ) );
+        } else {
+
+            my @data_minus_mean = $datavec_minus_mean->as_list;
+            my $data_minus_mean_val = $data_minus_mean[0];
+            my @covar_as_matrix = $covariance->as_list;
+            my $covar_val = $covar_as_matrix[0];
+            $log_likely = -0.5 * ($data_minus_mean_val ** 2) / $covar_val;
+
+        }
         my $posterior_log_likely = $log_likely + 
                        log( $self->{_class_priors}[$cluster_index] );
         push @log_likelihoods, $posterior_log_likely;
@@ -676,11 +725,11 @@ sub seed_the_clusters {
         ($self->{_cluster_means}, $self->{_cluster_covariances}) =
                            find_cluster_means_and_covariances(\@dataclusters);
     } elsif ($self->{_seeding} eq 'manual') {
-        croak "You have not supplied the seeding tags for the option \"manual\""
+        die "You have not supplied the seeding tags for the option \"manual\""
             unless @{$self->{_seed_tags}} > 0;
         print "Manual Seeding: Seed tags are @{$self->{_seed_tags}}\n\n";
         foreach my $tag (@{$self->{_seed_tags}}) {
-            croak "invalid tag used for manual seeding" 
+            die "invalid tag used for manual seeding" 
                 unless exists $self->{_data}->{$tag};
         }
         my ($seed_means, $seed_covars) = 
@@ -688,7 +737,7 @@ sub seed_the_clusters {
         $self->{_cluster_means} = $seed_means;
         $self->{_cluster_covariances} = $seed_covars;
     } else {
-        croak "Incorrect call syntax used.  See documentation.\n";
+        die "Incorrect call syntax used.  See documentation.";
     }
 }
 
@@ -702,7 +751,7 @@ sub kmeans {
     if ((defined $self->{_clusters}) && (defined $self->{_cluster_centers})){
         return ($self->{_clusters}, $self->{_cluster_centers});
     } else {
-        croak "kmeans clustering failed.";
+        die "kmeans clustering failed.";
     }
 }
 
@@ -1122,6 +1171,7 @@ sub DESTROY {
     unlink "__temp_" . basename($_[0]->{_datafile});
     unlink "__temp_data_" . basename($_[0]->{_datafile});
     unlink "__temp2_" . basename($_[0]->{_datafile});
+    unlink glob "__temp1dhist*";
     unlink glob "__contour*";
 }
 
@@ -1151,25 +1201,26 @@ sub visualize_clusters {
     my $v_mask;
     my $pause_time;
     if (@_ == 1) {
-        $v_mask = shift || croak "visualization mask missing";
+        $v_mask = shift || die "visualization mask missing";
     } elsif (@_ == 2) {
-        $v_mask = shift || croak "visualization mask missing";    
+        $v_mask = shift || die "visualization mask missing";    
         $pause_time = shift;
     } else {
-        croak "visualize_clusters() called with wrong args";
+        die "visualize_clusters() called with wrong args";
     }
     my $master_datafile = $self->{_datafile};
-
     my @v_mask = split //, $v_mask;
     my $visualization_mask_width = @v_mask;
     my $original_data_mask = $self->{_mask};
     my @mask = split //, $original_data_mask;
     my $data_field_width = scalar grep {$_ eq '1'} @mask;    
-    croak "\n\nABORTED: The width of the visualization mask (including " .
+    die "\n\nABORTED: The width of the visualization mask (including " .
           "all its 1s and 0s) must equal the width of the original mask " .
           "used for reading the data file (counting only the 1's)"
           if $visualization_mask_width != $data_field_width;
     my $visualization_data_field_width = scalar grep {$_ eq '1'} @v_mask;
+    # The following section is for the superimposed one-Mahalanobis-distance-unit 
+    # ellipses that are shown only for 2D plots:
     if ($visualization_data_field_width == 2) {
         foreach my $cluster_index (0..$self->{_K}-1) {
             my $contour_filename = "__contour_" . $cluster_index . ".dat";
@@ -1211,7 +1262,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
+        die "\nABORTED: Visualization mask size exceeds data record size" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1220,7 +1271,7 @@ END
             } elsif ($v_mask[$i] eq '1') {
                 push @data_fields, $fields[$i];
             } else {
-                croak "Misformed visualization mask. It can only have 1s and 0s\n";
+                die "Misformed visualization mask. It can only have 1s and 0s";
             }
         }
         $visualization_data{ $record_id } = \@data_fields;
@@ -1245,15 +1296,17 @@ END
     } else {
         $plot = Graphics::GnuplotIF->new();
     }
-    $plot->gnuplot_cmd( "set noclip" );
-    $plot->gnuplot_cmd( "set pointsize 2" );
     my $arg_string = "";
     if ($visualization_data_field_width > 2) {
+        $plot->gnuplot_cmd("set noclip");
+        $plot->gnuplot_cmd("set pointsize 2");
         foreach my $i (0..$K-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2:3 title \"Cluster (naive Bayes) $i\" with points lt $j pt $j, ";
         }
     } elsif ($visualization_data_field_width == 2) {
+        $plot->gnuplot_cmd("set noclip");
+        $plot->gnuplot_cmd("set pointsize 2");
         foreach my $i (0..$K-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2 title \"Cluster (naive Bayes) $i\" with points lt $j pt $j, ";
@@ -1261,9 +1314,48 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        foreach my $i (0..$K-1) {
-            my $j = $i + 1;
-            $arg_string .= "\"$temp_file\" index $i using 1 title \"Cluster (naive Bayes) $i\" with points lt $j pt $j, ";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        my @all_data = <INPUT>;
+        close INPUT;
+        @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
+        my $all_joined_data = join ':', @all_data;
+        my @separated = split /:SEPERATOR:SEPERATOR/, $all_joined_data;
+        my (@all_clusters_for_hist, @all_minvals, @all_maxvals, @all_minmaxvals);
+        foreach my $i (0..@separated-1) {
+            $separated[$i] =~ s/SEPERATOR//g;
+            my @cluster_for_hist = split /:/, $separated[$i];
+            @cluster_for_hist = grep $_, @cluster_for_hist;
+            my ($minval,$maxval) = minmax(\@cluster_for_hist);
+            push @all_minvals, $minval;
+            push @all_maxvals, $maxval;
+            push @all_clusters_for_hist, \@cluster_for_hist;
+        }
+        push @all_minmaxvals, @all_minvals;
+        push @all_minmaxvals, @all_maxvals;
+        my ($abs_minval,$abs_maxval) = minmax(\@all_minmaxvals);
+        my $delta = ($abs_maxval - $abs_minval) / 100.0;
+        $plot->gnuplot_cmd("set boxwidth 3");
+        $plot->gnuplot_cmd("set style fill solid border -1");
+        $plot->gnuplot_cmd("set ytics out nomirror");
+        $plot->gnuplot_cmd("set style data histograms");
+        $plot->gnuplot_cmd("set style histogram clustered");
+        $plot->gnuplot_cmd("set title 'Clusters shown through histograms'");
+        $plot->gnuplot_cmd("set xtics rotate by 90 offset 0,-5 out nomirror");
+        foreach my $cindex (0..@all_clusters_for_hist-1) {
+            my $filename = basename($master_datafile);
+            my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $filename;
+            unlink $temp_file if -e $temp_file;
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            print OUTPUT "Xstep histval\n";
+            my @histogram = (0) x 100;
+            foreach my $i (0..@{$all_clusters_for_hist[$cindex]}-1) {
+                $histogram[int( ($all_clusters_for_hist[$cindex][$i] - $abs_minval) / $delta )]++;
+            }
+            foreach my $i (0..@histogram-1) {
+                print OUTPUT "$i $histogram[$i]\n";        
+            }
+            $arg_string .= "\"$temp_file\" using 2:xtic(1) ti col smooth frequency with boxes lc $cindex, ";
+            close OUTPUT;
         }
     }
     $arg_string = $arg_string =~ /^(.*),[ ]+$/;
@@ -1275,7 +1367,8 @@ END
         $plot->gnuplot_cmd( "plot $arg_string" );
         $plot->gnuplot_pause( $pause_time ) if defined $pause_time;
     } elsif ($visualization_data_field_width == 1) {
-        croak "No provision for plotting 1-D data\n";
+        $plot->gnuplot_cmd( "plot $arg_string" );
+        $plot->gnuplot_pause( $pause_time ) if defined $pause_time;
     }
 }
 
@@ -1286,21 +1379,20 @@ sub plot_hardcopy_clusters {
     my $v_mask;
     my $pause_time;
     if (@_ == 1) {
-        $v_mask = shift || croak "visualization mask missing";
+        $v_mask = shift || die "visualization mask missing";
     } elsif (@_ == 2) {
-        $v_mask = shift || croak "visualization mask missing";    
+        $v_mask = shift || die "visualization mask missing";    
         $pause_time = shift;
     } else {
-        croak "visualize_clusters() called with wrong args";
+        die "visualize_clusters() called with wrong args";
     }
     my $master_datafile = $self->{_datafile};
-
     my @v_mask = split //, $v_mask;
     my $visualization_mask_width = @v_mask;
     my $original_data_mask = $self->{_mask};
     my @mask = split //, $original_data_mask;
     my $data_field_width = scalar grep {$_ eq '1'} @mask;    
-    croak "\n\nABORTED: The width of the visualization mask (including " .
+    die "\n\nABORTED: The width of the visualization mask (including " .
           "all its 1s and 0s) must equal the width of the original mask " .
           "used for reading the data file (counting only the 1's)"
           if $visualization_mask_width != $data_field_width;
@@ -1346,7 +1438,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
+        die "\nABORTED: Visualization mask size exceeds data record size" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1355,7 +1447,7 @@ END
             } elsif ($v_mask[$i] eq '1') {
                 push @data_fields, $fields[$i];
             } else {
-                croak "Misformed visualization mask. It can only have 1s and 0s\n";
+                die "Misformed visualization mask. It can only have 1s and 0s";
             }
         }
         $visualization_data{ $record_id } = \@data_fields;
@@ -1380,15 +1472,17 @@ END
     } else {
         $plot = Graphics::GnuplotIF->new();
     }
-    $plot->gnuplot_cmd( "set noclip" );
-    $plot->gnuplot_cmd( "set pointsize 2" );
     my $arg_string = "";
     if ($visualization_data_field_width > 2) {
+        $plot->gnuplot_cmd( "set noclip" );
+        $plot->gnuplot_cmd( "set pointsize 2" );
         foreach my $i (0..$K-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2:3 title \"Cluster (naive Bayes) $i\" with points lt $j pt $j, ";
         }
     } elsif ($visualization_data_field_width == 2) {
+        $plot->gnuplot_cmd( "set noclip" );
+        $plot->gnuplot_cmd( "set pointsize 2" );
         foreach my $i (0..$K-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2 title \"Cluster (naive Bayes) $i\" with points lt $j pt $j, ";
@@ -1396,9 +1490,49 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        foreach my $i (0..$K-1) {
-            my $j = $i + 1;
-            $arg_string .= "\"$temp_file\" index $i using 1 title \"Cluster (naive Bayes) $i\" with points lt $j pt $j, ";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        my @all_data = <INPUT>;
+        close INPUT;
+        @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
+        my $all_joined_data = join ':', @all_data;
+        my @separated = split /:SEPERATOR:SEPERATOR/, $all_joined_data;
+        my (@all_clusters_for_hist, @all_minvals, @all_maxvals, @all_minmaxvals);
+        foreach my $i (0..@separated-1) {
+            $separated[$i] =~ s/SEPERATOR//g;
+            my @cluster_for_hist = split /:/, $separated[$i];
+            @cluster_for_hist = grep $_, @cluster_for_hist;
+            my ($minval,$maxval) = minmax(\@cluster_for_hist);
+            push @all_minvals, $minval;
+            push @all_maxvals, $maxval;
+            push @all_clusters_for_hist, \@cluster_for_hist;
+        }
+        push @all_minmaxvals, @all_minvals;
+        push @all_minmaxvals, @all_maxvals;
+        my ($abs_minval,$abs_maxval) = minmax(\@all_minmaxvals);
+        my $delta = ($abs_maxval - $abs_minval) / 100.0;
+        $plot->gnuplot_cmd("set boxwidth 3");
+        $plot->gnuplot_cmd("set style fill solid border -1");
+        $plot->gnuplot_cmd("set ytics out nomirror");
+        $plot->gnuplot_cmd("set style data histograms");
+        $plot->gnuplot_cmd("set style histogram clustered");
+        $plot->gnuplot_cmd("set title 'Clusters shown through histograms'");
+        $plot->gnuplot_cmd("set xtics rotate by 90 offset 0,-5 out nomirror");
+        foreach my $cindex (0..@all_clusters_for_hist-1) {
+            my $filename = basename($master_datafile);
+            my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $filename;
+            unlink $temp_file if -e $temp_file;
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            print OUTPUT "Xstep histval\n";
+            my @histogram = (0) x 100;
+            foreach my $i (0..@{$all_clusters_for_hist[$cindex]}-1) {
+                $histogram[int( ($all_clusters_for_hist[$cindex][$i] - $abs_minval) / $delta )]++;
+            }
+            foreach my $i (0..@histogram-1) {
+                print OUTPUT "$i $histogram[$i]\n";        
+            }
+#            $arg_string .= "\"$temp_file\" using 1:2 ti col smooth frequency with boxes lc $cindex, ";
+            $arg_string .= "\"$temp_file\" using 2:xtic(1) ti col smooth frequency with boxes lc $cindex, ";
+            close OUTPUT;
         }
     }
     $arg_string = $arg_string =~ /^(.*),[ ]+$/;
@@ -1412,7 +1546,9 @@ END
                            'set output "cluster_plot.png"');
         $plot->gnuplot_cmd( "plot $arg_string" );
     } elsif ($visualization_data_field_width == 1) {
-        croak "No provision for plotting 1-D data\n";
+        $plot->gnuplot_cmd('set terminal png',
+                           'set output "cluster_plot.png"');
+        $plot->gnuplot_cmd( "plot $arg_string" );
     }
 }
 
@@ -1426,19 +1562,19 @@ sub visualize_distributions {
     my $v_mask;
     my $pause_time;
     if (@_ == 1) {
-        $v_mask = shift || croak "visualization mask missing";
+        $v_mask = shift || die "visualization mask missing";
     } elsif (@_ == 2) {
-        $v_mask = shift || croak "visualization mask missing";    
+        $v_mask = shift || die "visualization mask missing";    
         $pause_time = shift;
     } else {
-        croak "visualize_distributions() called with wrong args";
+        die "visualize_distributions() called with wrong args";
     }
     my @v_mask = split //, $v_mask;
     my $visualization_mask_width = @v_mask;
     my $original_data_mask = $self->{_mask};
     my @mask = split //, $original_data_mask;
     my $data_field_width = scalar grep {$_ eq '1'} @mask;    
-    croak "\n\nABORTED: The width of the visualization mask (including " .
+    die "\n\nABORTED: The width of the visualization mask (including " .
           "all its 1s and 0s) must equal the width of the original mask " .
           "used for reading the data file (counting only the 1's)"
           if $visualization_mask_width != $data_field_width;
@@ -1484,7 +1620,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
+        die "\nABORTED: Visualization mask size exceeds data record size" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1493,7 +1629,7 @@ END
             } elsif ($v_mask[$i] eq '1') {
                 push @data_fields, $fields[$i];
             } else {
-                croak "Misformed visualization mask. It can only have 1s and 0s\n";
+                die "Misformed visualization mask. It can only have 1s and 0s";
             }
         }
         $visualization_data{ $record_id } = \@data_fields;
@@ -1527,15 +1663,17 @@ END
     } else {
         $plot = Graphics::GnuplotIF->new();
     }
-    $plot->gnuplot_cmd( "set noclip" );
-    $plot->gnuplot_cmd( "set pointsize 2" );
     my $arg_string = "";
     if ($visualization_data_field_width > 2) {
+        $plot->gnuplot_cmd( "set noclip" );
+        $plot->gnuplot_cmd( "set pointsize 2" );
         foreach my $i (0..$self->{_K}-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2:3 title \"Cluster $i (based on posterior probs)\" with points lt $j pt $j, ";
         }
     } elsif ($visualization_data_field_width == 2) {
+        $plot->gnuplot_cmd( "set noclip" );
+        $plot->gnuplot_cmd( "set pointsize 2" );
         foreach my $i (0..$self->{_K}-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2 title \"Cluster $i (based on posterior probs)\" with points lt $j pt $j, ";
@@ -1543,14 +1681,54 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        foreach my $i (0..$self->{_K}-1) {
-            my $j = $i + 1;
-            $arg_string .= "\"$temp_file\" index $i using 1 title \"Cluster $i (based on posterior probs)\" with points lt $j pt $j, ";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        my @all_data = <INPUT>;
+        close INPUT;
+        @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
+        my $all_joined_data = join ':', @all_data;
+        my @separated = split /:SEPERATOR:SEPERATOR/, $all_joined_data;
+        my (@all_clusters_for_hist, @all_minvals, @all_maxvals, @all_minmaxvals);
+        foreach my $i (0..@separated-1) {
+            $separated[$i] =~ s/SEPERATOR//g;
+            my @cluster_for_hist = split /:/, $separated[$i];
+            @cluster_for_hist = grep $_, @cluster_for_hist;
+            my ($minval,$maxval) = minmax(\@cluster_for_hist);
+            push @all_minvals, $minval;
+            push @all_maxvals, $maxval;
+            push @all_clusters_for_hist, \@cluster_for_hist;
+        }
+        push @all_minmaxvals, @all_minvals;
+        push @all_minmaxvals, @all_maxvals;
+        my ($abs_minval,$abs_maxval) = minmax(\@all_minmaxvals);
+        my $delta = ($abs_maxval - $abs_minval) / 100.0;
+        $plot->gnuplot_cmd("set boxwidth 3");
+        $plot->gnuplot_cmd("set style fill solid border -1");
+        $plot->gnuplot_cmd("set ytics out nomirror");
+        $plot->gnuplot_cmd("set style data histograms");
+        $plot->gnuplot_cmd("set style histogram clustered");
+        $plot->gnuplot_cmd("set title 'Individual distributions shown through histograms'");
+        $plot->gnuplot_cmd("set xtics rotate by 90 offset 0,-5 out nomirror");
+        foreach my $cindex (0..@all_clusters_for_hist-1) {
+            my $localfilename = basename($filename);
+            my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $localfilename;
+            unlink $temp_file if -e $temp_file;
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            print OUTPUT "Xstep histval\n";
+
+            my @histogram = (0) x 100;
+            foreach my $i (0..@{$all_clusters_for_hist[$cindex]}-1) {
+                $histogram[int( ($all_clusters_for_hist[$cindex][$i] - $abs_minval) / $delta )]++;
+            }
+            foreach my $i (0..@histogram-1) {
+                print OUTPUT "$i $histogram[$i]\n";        
+            }
+#            $arg_string .= "\"$temp_file\" using 1:2 ti col smooth frequency with boxes lc $cindex, ";
+            $arg_string .= "\"$temp_file\" using 2:xtic(1) ti col smooth frequency with boxes lc $cindex, ";
+            close OUTPUT;
         }
     }
     $arg_string = $arg_string =~ /^(.*),[ ]+$/;
     $arg_string = $1;
-
     if ($visualization_data_field_width > 2) {
         $plot->gnuplot_cmd( "splot $arg_string" );
         $plot->gnuplot_pause( $pause_time ) if defined $pause_time;
@@ -1558,7 +1736,8 @@ END
         $plot->gnuplot_cmd( "plot $arg_string" );
         $plot->gnuplot_pause( $pause_time ) if defined $pause_time;
     } elsif ($visualization_data_field_width == 1) {
-        croak "No provision for plotting 1-D data\n";
+        $plot->gnuplot_cmd( "plot $arg_string" );
+        $plot->gnuplot_pause( $pause_time ) if defined $pause_time;
     }
 }
 
@@ -1569,19 +1748,19 @@ sub plot_hardcopy_distributions {
     my $v_mask;
     my $pause_time;
     if (@_ == 1) {
-        $v_mask = shift || croak "visualization mask missing";
+        $v_mask = shift || die "visualization mask missing";
     } elsif (@_ == 2) {
-        $v_mask = shift || croak "visualization mask missing";    
+        $v_mask = shift || die "visualization mask missing";    
         $pause_time = shift;
     } else {
-        croak "visualize_distributions() called with wrong args";
+        die "visualize_distributions() called with wrong args";
     }
     my @v_mask = split //, $v_mask;
     my $visualization_mask_width = @v_mask;
     my $original_data_mask = $self->{_mask};
     my @mask = split //, $original_data_mask;
     my $data_field_width = scalar grep {$_ eq '1'} @mask;    
-    croak "\n\nABORTED: The width of the visualization mask (including " .
+    die "\n\nABORTED: The width of the visualization mask (including " .
           "all its 1s and 0s) must equal the width of the original mask " .
           "used for reading the data file (counting only the 1's)"
           if $visualization_mask_width != $data_field_width;
@@ -1627,7 +1806,7 @@ END
     my %visualization_data;
     while ( my ($record_id, $data) = each %{$self->{_data}} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
+        die "\nABORTED: Visualization mask size exceeds data record size" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1636,7 +1815,7 @@ END
             } elsif ($v_mask[$i] eq '1') {
                 push @data_fields, $fields[$i];
             } else {
-                croak "Misformed visualization mask. It can only have 1s and 0s\n";
+                die "Misformed visualization mask. It can only have 1s and 0s";
             }
         }
         $visualization_data{ $record_id } = \@data_fields;
@@ -1670,15 +1849,17 @@ END
     } else {
         $plot = Graphics::GnuplotIF->new();
     }
-    $plot->gnuplot_cmd( "set noclip" );
-    $plot->gnuplot_cmd( "set pointsize 2" );
     my $arg_string = "";
     if ($visualization_data_field_width > 2) {
+        $plot->gnuplot_cmd( "set noclip" );
+        $plot->gnuplot_cmd( "set pointsize 2" );
         foreach my $i (0..$self->{_K}-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2:3 title \"Cluster $i (based on posterior probs)\" with points lt $j pt $j, ";
         }
     } elsif ($visualization_data_field_width == 2) {
+        $plot->gnuplot_cmd( "set noclip" );
+        $plot->gnuplot_cmd( "set pointsize 2" );
         foreach my $i (0..$self->{_K}-1) {
             my $j = $i + 1;
             $arg_string .= "\"$temp_file\" index $i using 1:2 title \"Cluster $i (based on posterior probs)\" with points lt $j pt $j, ";
@@ -1686,9 +1867,49 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        foreach my $i (0..$self->{_K}-1) {
-            my $j = $i + 1;
-            $arg_string .= "\"$temp_file\" index $i using 1 title \"Cluster $i (based on posterior probs)\" with points lt $j pt $j, ";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        my @all_data = <INPUT>;
+        close INPUT;
+        @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
+        my $all_joined_data = join ':', @all_data;
+        my @separated = split /:SEPERATOR:SEPERATOR/, $all_joined_data;
+        my (@all_clusters_for_hist, @all_minvals, @all_maxvals, @all_minmaxvals);
+        foreach my $i (0..@separated-1) {
+            $separated[$i] =~ s/SEPERATOR//g;
+            my @cluster_for_hist = split /:/, $separated[$i];
+            @cluster_for_hist = grep $_, @cluster_for_hist;
+            my ($minval,$maxval) = minmax(\@cluster_for_hist);
+            push @all_minvals, $minval;
+            push @all_maxvals, $maxval;
+            push @all_clusters_for_hist, \@cluster_for_hist;
+        }
+        push @all_minmaxvals, @all_minvals;
+        push @all_minmaxvals, @all_maxvals;
+        my ($abs_minval,$abs_maxval) = minmax(\@all_minmaxvals);
+        my $delta = ($abs_maxval - $abs_minval) / 100.0;
+        $plot->gnuplot_cmd("set boxwidth 3");
+        $plot->gnuplot_cmd("set style fill solid border -1");
+        $plot->gnuplot_cmd("set ytics out nomirror");
+        $plot->gnuplot_cmd("set style data histograms");
+        $plot->gnuplot_cmd("set style histogram clustered");
+        $plot->gnuplot_cmd("set title 'Individual distributions shown through histograms'");
+        $plot->gnuplot_cmd("set xtics rotate by 90 offset 0,-5 out nomirror");
+        foreach my $cindex (0..@all_clusters_for_hist-1) {
+            my $localfilename = basename($filename);
+            my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $localfilename;
+            unlink $temp_file if -e $temp_file;
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            print OUTPUT "Xstep histval\n";
+
+            my @histogram = (0) x 100;
+            foreach my $i (0..@{$all_clusters_for_hist[$cindex]}-1) {
+                $histogram[int( ($all_clusters_for_hist[$cindex][$i] - $abs_minval) / $delta )]++;
+            }
+            foreach my $i (0..@histogram-1) {
+                print OUTPUT "$i $histogram[$i]\n";        
+            }
+            $arg_string .= "\"$temp_file\" using 2:xtic(1) ti col smooth frequency with boxes lc $cindex, ";
+            close OUTPUT;
         }
     }
     $arg_string = $arg_string =~ /^(.*),[ ]+$/;
@@ -1703,7 +1924,9 @@ END
                             'set output "posterior_prob_plot.png"');
         $plot->gnuplot_cmd( "plot $arg_string" );
     } elsif ($visualization_data_field_width == 1) {
-        croak "No provision for plotting 1-D data\n";
+        $plot->gnuplot_cmd( 'set terminal png',
+                            'set output "posterior_prob_plot.png"');
+        $plot->gnuplot_cmd( "plot $arg_string" );
     }
 }
 
@@ -1712,7 +1935,7 @@ END
 #  original data in its various 2D or 3D subspaces.
 sub visualize_data {
     my $self = shift;
-    my $v_mask = shift || croak "visualization mask missing";
+    my $v_mask = shift || die "visualization mask missing";
 
     my $master_datafile = $self->{_datafile};
 
@@ -1721,7 +1944,7 @@ sub visualize_data {
     my $original_data_mask = $self->{_mask};
     my @mask = split //, $original_data_mask;
     my $data_field_width = scalar grep {$_ eq '1'} @mask;    
-    croak "\n\nABORTED: The width of the visualization mask (including " .
+    die "\n\nABORTED: The width of the visualization mask (including " .
           "all its 1s and 0s) must equal the width of the original mask " .
           "used for reading the data file (counting only the 1's)"
           if $visualization_mask_width != $data_field_width;
@@ -1730,7 +1953,7 @@ sub visualize_data {
     my $data_source = $self->{_data};
     while ( my ($record_id, $data) = each %{$data_source} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
+        die "\nABORTED: Visualization mask size exceeds data record size" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1739,7 +1962,7 @@ sub visualize_data {
             } elsif ($v_mask[$i] eq '1') {
                 push @data_fields, $fields[$i];
             } else {
-                croak "Misformed visualization mask. It can only have 1s and 0s\n";
+                die "Misformed visualization mask. It can only have 1s and 0s";
             }
         }
         $visualization_data{ $record_id } = \@data_fields;
@@ -1755,7 +1978,6 @@ sub visualize_data {
         print OUTPUT "\n";
     }
     close OUTPUT;
-
     my $plot = Graphics::GnuplotIF->new( persist => 1 );
     $plot->gnuplot_cmd( "set noclip" );
     $plot->gnuplot_cmd( "set pointsize 2" );
@@ -1766,15 +1988,41 @@ sub visualize_data {
     } elsif ($visualization_data_field_width == 2) {
         $arg_string = "\"$temp_file\" using 1:2 title $plot_title with points lt -1 pt 1";
     } elsif ($visualization_data_field_width == 1 ) {
-        $arg_string = "\"$temp_file\" using 1 notitle with points lt -1 pt 1";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        my @all_data = <INPUT>;
+        close INPUT;
+        @all_data = map {chomp $_; $_} @all_data;
+        @all_data = grep $_, @all_data;
+        my ($minval,$maxval) = minmax(\@all_data);
+        my $delta = ($maxval - $minval) / 100.0;
+        $plot->gnuplot_cmd("set boxwidth 3");
+        $plot->gnuplot_cmd("set style fill solid border -1");
+        $plot->gnuplot_cmd("set ytics out nomirror");
+        $plot->gnuplot_cmd("set style data histograms");
+        $plot->gnuplot_cmd("set style histogram clustered");
+        $plot->gnuplot_cmd("set title 'Overall distribution of 1D data'");
+        $plot->gnuplot_cmd("set xtics rotate by 90 offset 0,-5 out nomirror");
+        my $localfilename = basename($filename);
+        my $temp_file = "__temp1dhist_" .  $localfilename;
+        unlink $temp_file if -e $temp_file;
+        open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        print OUTPUT "Xstep histval\n";
+        my @histogram = (0) x 100;
+        foreach my $i (0..@all_data-1) {
+            $histogram[int( ($all_data[$i] - $minval) / $delta )]++;
+        }
+        foreach my $i (0..@histogram-1) {
+            print OUTPUT "$i $histogram[$i]\n";        
+        }
+        $arg_string = "\"$temp_file\" using 2:xtic(1) ti col smooth frequency with boxes lc rgb 'green'";
+        close OUTPUT;
     }
-
     if ($visualization_data_field_width > 2) {
         $plot->gnuplot_cmd( "splot $arg_string" );
     } elsif ($visualization_data_field_width == 2) {
         $plot->gnuplot_cmd( "plot $arg_string" );
     } elsif ($visualization_data_field_width == 1) {
-        croak "No provision for plotting 1-D data\n";
+        $plot->gnuplot_cmd( "plot $arg_string" );
     }
 }
 
@@ -1782,16 +2030,14 @@ sub visualize_data {
 # creating PNG files of the displays.
 sub plot_hardcopy_data {
     my $self = shift;
-    my $v_mask = shift || croak "visualization mask missing";
-
+    my $v_mask = shift || die "visualization mask missing";
     my $master_datafile = $self->{_datafile};
-
     my @v_mask = split //, $v_mask;
     my $visualization_mask_width = @v_mask;
     my $original_data_mask = $self->{_mask};
     my @mask = split //, $original_data_mask;
     my $data_field_width = scalar grep {$_ eq '1'} @mask;    
-    croak "\n\nABORTED: The width of the visualization mask (including " .
+    die "\n\nABORTED: The width of the visualization mask (including " .
           "all its 1s and 0s) must equal the width of the original mask " .
           "used for reading the data file (counting only the 1's)"
           if $visualization_mask_width != $data_field_width;
@@ -1800,7 +2046,7 @@ sub plot_hardcopy_data {
     my $data_source = $self->{_data};
     while ( my ($record_id, $data) = each %{$data_source} ) {
         my @fields = @$data;
-        croak "\nABORTED: Visualization mask size exceeds data record size\n" 
+        die "\nABORTED: Visualization mask size exceeds data record size" 
             if $#v_mask > $#fields;
         my @data_fields;
         foreach my $i (0..@fields-1) {
@@ -1809,7 +2055,7 @@ sub plot_hardcopy_data {
             } elsif ($v_mask[$i] eq '1') {
                 push @data_fields, $fields[$i];
             } else {
-                croak "Misformed visualization mask. It can only have 1s and 0s\n";
+                die "Misformed visualization mask. It can only have 1s and 0s";
             }
         }
         $visualization_data{ $record_id } = \@data_fields;
@@ -1836,9 +2082,35 @@ sub plot_hardcopy_data {
     } elsif ($visualization_data_field_width == 2) {
         $arg_string = "\"$temp_file\" using 1:2 title $plot_title with points lt -1 pt 1";
     } elsif ($visualization_data_field_width == 1 ) {
-        $arg_string = "\"$temp_file\" using 1 notitle with points lt -1 pt 1";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        my @all_data = <INPUT>;
+        close INPUT;
+        @all_data = map {chomp $_; $_} @all_data;
+        @all_data = grep $_, @all_data;
+        my ($minval,$maxval) = minmax(\@all_data);
+        my $delta = ($maxval - $minval) / 100.0;
+        $plot->gnuplot_cmd("set boxwidth 3");
+        $plot->gnuplot_cmd("set style fill solid border -1");
+        $plot->gnuplot_cmd("set ytics out nomirror");
+        $plot->gnuplot_cmd("set style data histograms");
+        $plot->gnuplot_cmd("set style histogram clustered");
+        $plot->gnuplot_cmd("set title 'Overall distribution of 1D data'");
+        $plot->gnuplot_cmd("set xtics rotate by 90 offset 0,-5 out nomirror");
+        my $localfilename = basename($filename);
+        my $temp_file = "__temp1dhist_" .  $localfilename;
+        unlink $temp_file if -e $temp_file;
+        open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        print OUTPUT "Xstep histval\n";
+        my @histogram = (0) x 100;
+        foreach my $i (0..@all_data-1) {
+            $histogram[int( ($all_data[$i] - $minval) / $delta )]++;
+        }
+        foreach my $i (0..@histogram-1) {
+            print OUTPUT "$i $histogram[$i]\n";        
+        }
+        $arg_string = "\"$temp_file\" using 2:xtic(1) ti col smooth frequency with boxes lc rgb 'green'";
+        close OUTPUT;
     }
-
     if ($visualization_data_field_width > 2) {
         $plot->gnuplot_cmd( 'set terminal png',
                             'set output "data_scatter_plot.png"');
@@ -1848,7 +2120,9 @@ sub plot_hardcopy_data {
                             'set output "data_scatter_plot.png"');
         $plot->gnuplot_cmd( "plot $arg_string" );
     } elsif ($visualization_data_field_width == 1) {
-        croak "No provision for plotting 1-D data\n";
+        $plot->gnuplot_cmd( 'set terminal png',
+                            'set output "data_scatter_plot.png"');
+        $plot->gnuplot_cmd( "plot $arg_string" );
     }
 }
 
@@ -1866,7 +2140,7 @@ sub plot_hardcopy_data {
 #  specify be symmetric and positive definite.
 sub cluster_data_generator {
     my $class = shift;
-    croak "illegal call of a class method" 
+    die "illegal call of a class method" 
         unless $class eq 'Algorithm::ExpectationMaximization';
     my %args = @_;
     my $input_parameter_file = $args{input_parameter_file};
@@ -2209,6 +2483,10 @@ sub non_maximum_supression {
 sub display_matrix {
     my $message = shift;
     my $matrix = shift;
+    if (!defined blessed($matrix)) {
+        print "display_matrix called on a scalar value: $matrix\n";
+        return;
+    }
     my $nrows = $matrix->rows();
     my $ncols = $matrix->cols();
     print "$message ($nrows rows and $ncols columns)\n";
@@ -2290,8 +2568,8 @@ sub matrix_multiply {
 sub vector_matrix_multiply {
     my $matrix1 = shift;
     my $matrix2 = shift;
-    my ($nrows1, $ncols1) = ($matrix1->rows(), $matrix1->cols());
-    my ($nrows2, $ncols2) = ($matrix2->rows(), $matrix2->cols());
+    my ($nrows1, $ncols1) = ($matrix1->rows, $matrix1->cols);
+    my ($nrows2, $ncols2) = ($matrix2->rows, $matrix2->cols);
     die "matrix multiplication called with non-matching matrix arguments"
         unless $nrows1 == 1 && $ncols1 == $nrows2;
     if ($ncols2 == 1) {
@@ -2534,6 +2812,9 @@ numerical multi-dimensional data with the Expectation-Maximization algorithm.
 
 
 =head1 CHANGES
+
+Version 1.2 allows the module to also be used for 1-D data.  The visualization code
+for 1-D shows the clusters through their histograms.
 
 Version 1.1 incorporates much cleanup of the documentation associated with the
 module.  Both the top-level module documentation, especially the Description part,
@@ -3042,6 +3323,12 @@ the two clustering quality metrics for finding the best choice for C<K> for a gi
 dataset.  Obviously, you will now have to incorporate the call to the constructor in
 a loop and check the value of the quality measures for each value of C<K>.
 
+=head1 SOME RESULTS OBTAINED WITH THIS MODULE
+
+If you would like to see some results that have been obtained with this module, check
+out Section 7 of the report
+L<https://engineering.purdue.edu/kak/ExpectationMaximization.pdf>.
+
 =head1 THE C<examples> DIRECTORY
 
 Becoming familiar with this directory should be your best
@@ -3105,9 +3392,20 @@ former displaying the hard clusters obtained by using the naive Bayes' classifie
 the latter showing the soft clusters obtained through the posterior class
 probabilities at the data points.
 
+=item I<canned_example6.pl>
+
+This example, added in Version 1.2, demonstrates the use of this module for 1-D data.
+In order to visualize the clusters for the 1-D case, we show them through their
+respective histograms.  The datafile used in this example is C<mydatafile7.dat>.  The
+data consists of two overlapping Gaussians.  The EM derived clustering for this data
+is shown in the files C<save_example_6_cluster_plot.png> and
+C<save_example_6_posterior_prob_plot.png>, the former displaying the hard clusters
+obtained by using the naive Bayes' classifier and the latter showing the soft
+clusters obtained through the posterior class probabilities at the data points.
+
 =back
 
-Going through the five examples listed above will make you familiar with how to make
+Going through the six examples listed above will make you familiar with how to make
 the calls to the clustering and the visualization methods.  The C<examples> directory
 also includes several parameter files with names like
 
@@ -3179,6 +3477,11 @@ if you have root access.  If not,
     make test
     make install
 
+=head1 ACKNOWLEDGMENTS
+
+Version 1.2 is a result of the feedback received from Paul
+May of University of Birmingham. Thanks, Paul!
+
 =head1 AUTHOR
 
 Avinash Kak, kak@purdue.edu
@@ -3191,7 +3494,7 @@ subject line to get past my spam filter.
 This library is free software; you can redistribute it and/or modify it under the
 same terms as Perl itself.
 
- Copyright 2012 Avinash Kak
+ Copyright 2013 Avinash Kak
 
 =cut
 
