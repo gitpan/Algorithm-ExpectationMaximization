@@ -1,24 +1,24 @@
---- #YAML:1.0
-name:               Algorithm-ExpectationMaximization
-version:            1.2
-abstract:           A pure-Perl implementation of the Expectation Maximization Algoirthm
+---
+abstract: 'A Perl implementation of the Expectation Maximization algorithm for clustering numerical data'
 author:
-    - Avinash Kak (kak@purdue.edu)
-license:            unknown
-distribution_type:  module
-configure_requires:
-    ExtUtils::MakeMaker:  0
+  - 'Avinash Kak (kak@purdue.edu)'
 build_requires:
-    ExtUtils::MakeMaker:  0
-requires:
-    Graphics::GnuplotIF:  1.4
-    Math::GSL:            0.26
-    Math::Random:         0.71
-no_index:
-    directory:
-        - t
-        - inc
-generated_by:       ExtUtils::MakeMaker version 6.57_05
+  ExtUtils::MakeMaker: 0
+configure_requires:
+  ExtUtils::MakeMaker: 0
+dynamic_config: 1
+generated_by: 'ExtUtils::MakeMaker version 6.66, CPAN::Meta::Converter version 2.120921'
+license: unknown
 meta-spec:
-    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
-    version:  1.4
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: Algorithm-ExpectationMaximization
+no_index:
+  directory:
+    - t
+    - inc
+requires:
+  Graphics::GnuplotIF: 1.4
+  Math::GSL: 0.26
+  Math::Random: 0.71
+version: 1.21

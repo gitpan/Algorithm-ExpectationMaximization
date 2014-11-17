@@ -1,7 +1,7 @@
 package Algorithm::ExpectationMaximization;
 
 #---------------------------------------------------------------------------
-# Copyright (c) 2013 Avinash Kak. All rights reserved.  This program is free
+# Copyright (c) 2014 Avinash Kak. All rights reserved.  This program is free
 # software.  You may modify and/or distribute it under the same terms as Perl itself.
 # This copyright notice must remain attached to the file.
 #
@@ -20,7 +20,7 @@ use Graphics::GnuplotIF;
 use Math::GSL::Matrix;
 use Scalar::Util 'blessed';
 
-our $VERSION = '1.2';
+our $VERSION = '1.21';
 
 # from perl docs:
 my $_num_regex =  '^[+-]?\ *(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$'; 
@@ -70,7 +70,7 @@ sub read_data_from_file {
     print "data dimensionality:  $self->{_data_dimensions} \n"
 	if $self->{_terminal_output};
     open INPUT, $datafile
-        or die "unable to open file $datafile: $!\n";
+        or die "unable to open file $datafile: $!";
     chomp( my @raw_data = <INPUT> );
     close INPUT;
     # Transform strings into number data
@@ -79,7 +79,7 @@ sub read_data_from_file {
         next if $record =~ /^#/;
         my @data_fields;
         my @fields = split /\s+/, $record;
-        die "\nABORTED: Mask size does not correspond to row record size\n" 
+        die "\nABORTED: Mask size does not correspond to row record size" 
             if $#fields != $#mask;
         my $record_id;
         foreach my $i (0..@fields-1) {
@@ -90,7 +90,7 @@ sub read_data_from_file {
             } elsif ($mask[$i] eq '1') {
                 push @data_fields, $fields[$i];
             } else {
-                die "misformed mask for reading the data file\n";
+                die "misformed mask for reading the data file";
             }
         }
         my @nums = map {/$_num_regex/;$_} @data_fields;
@@ -693,7 +693,6 @@ sub find_seed_centered_covariances {
 # seeding.  In such cases --- AND ONLY IN SUCH CASES --- the kmeans based seeding has
 # the advantage of avoiding the getting stuck in a local-maximum problem of the EM
 # algorithm.
-
 sub seed_the_clusters {
     my $self = shift;
     if ($self->{_seeding} eq 'random') {
@@ -1080,9 +1079,9 @@ sub update_cluster_centers {
     }
     foreach my $cluster (@clusters) {
         die "Cluster became empty --- untenable condition " .
-            "for a given K.  Try again. \n" if !defined $cluster;
+            "for a given K.  Try again. " if !defined $cluster;
         my $cluster_size = @$cluster;
-        die "Cluster size is zero --- untenable.\n" if $cluster_size == 0;
+        die "Cluster size is zero --- untenable." if $cluster_size == 0;
         my @new_cluster_center = @{$self->add_point_coords( $cluster )};
         @new_cluster_center = map {my $x = $_/$cluster_size; $x} 
                                   @new_cluster_center;
@@ -1099,7 +1098,7 @@ sub distance {
     my $ele1_id = shift @_;            # symbolic name of data sample
     my @ele1 = @{$self->{_data}->{$ele1_id}};
     my @ele2 = @{shift @_};
-    die "wrong data types for distance calculation\n" if @ele1 != @ele2;
+    die "wrong data types for distance calculation" if @ele1 != @ele2;
     my $how_many = @ele1;
     my $squared_sum = 0;
     foreach my $i (0..$how_many-1) {
@@ -1115,7 +1114,7 @@ sub distance2 {
     my $self = shift;
     my @ele1 = @{shift @_};
     my @ele2 = @{shift @_};
-    die "wrong data types for distance calculation\n" if @ele1 != @ele2;
+    die "wrong data types for distance calculation" if @ele1 != @ele2;
     my $how_many = @ele1;
     my $squared_sum = 0;
     foreach my $i (0..$how_many-1) {
@@ -1281,7 +1280,7 @@ END
     my $temp_file = "__temp_" . $filename;
     unlink $temp_file if -e $temp_file;
     open OUTPUT, ">$temp_file"
-           or die "Unable to open a temp file in this directory: $!\n";
+           or die "Unable to open a temp file in this directory: $!";
     foreach my $cluster (@{$self->{_clusters}}) {
         foreach my $item (@$cluster) {
             print OUTPUT "@{$visualization_data{$item}}";
@@ -1314,7 +1313,7 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!";
         my @all_data = <INPUT>;
         close INPUT;
         @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
@@ -1345,7 +1344,7 @@ END
             my $filename = basename($master_datafile);
             my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $filename;
             unlink $temp_file if -e $temp_file;
-            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!";
             print OUTPUT "Xstep histval\n";
             my @histogram = (0) x 100;
             foreach my $i (0..@{$all_clusters_for_hist[$cindex]}-1) {
@@ -1457,7 +1456,7 @@ END
     my $temp_file = "__temp_" . $filename;
     unlink $temp_file if -e $temp_file;
     open OUTPUT, ">$temp_file"
-           or die "Unable to open a temp file in this directory: $!\n";
+           or die "Unable to open a temp file in this directory: $!";
     foreach my $cluster (@{$self->{_clusters}}) {
         foreach my $item (@$cluster) {
             print OUTPUT "@{$visualization_data{$item}}";
@@ -1490,7 +1489,7 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!";
         my @all_data = <INPUT>;
         close INPUT;
         @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
@@ -1521,7 +1520,7 @@ END
             my $filename = basename($master_datafile);
             my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $filename;
             unlink $temp_file if -e $temp_file;
-            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!";
             print OUTPUT "Xstep histval\n";
             my @histogram = (0) x 100;
             foreach my $i (0..@{$all_clusters_for_hist[$cindex]}-1) {
@@ -1638,7 +1637,7 @@ END
     my $temp_file = "__temp2_" . $filename;
     unlink $temp_file if -e $temp_file;
     open OUTPUT, ">$temp_file"
-           or die "Unable to open a temp file in this directory: $!\n";
+           or die "Unable to open a temp file in this directory: $!";
     my @class_distributions;
     foreach my $cluster_index (0..$self->{_K}-1) {
         push @class_distributions, [];
@@ -1681,7 +1680,7 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!";
         my @all_data = <INPUT>;
         close INPUT;
         @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
@@ -1712,7 +1711,7 @@ END
             my $localfilename = basename($filename);
             my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $localfilename;
             unlink $temp_file if -e $temp_file;
-            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!";
             print OUTPUT "Xstep histval\n";
 
             my @histogram = (0) x 100;
@@ -1824,7 +1823,7 @@ END
     my $temp_file = "__temp2_" . $filename;
     unlink $temp_file if -e $temp_file;
     open OUTPUT, ">$temp_file"
-           or die "Unable to open a temp file in this directory: $!\n";
+           or die "Unable to open a temp file in this directory: $!";
     my @class_distributions;
     foreach my $cluster_index (0..$self->{_K}-1) {
         push @class_distributions, [];
@@ -1867,7 +1866,7 @@ END
             $arg_string .= "\"$ellipse_filename\" with line lt $j title \"\", ";
         }
     } elsif ($visualization_data_field_width == 1 ) {
-        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!";
         my @all_data = <INPUT>;
         close INPUT;
         @all_data = map {chomp $_; $_ =~ /\d/ ? $_ : "SEPERATOR" } @all_data;
@@ -1898,7 +1897,7 @@ END
             my $localfilename = basename($filename);
             my $temp_file = "__temp1dhist_" . "$cindex" . "_" .  $localfilename;
             unlink $temp_file if -e $temp_file;
-            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+            open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!";
             print OUTPUT "Xstep histval\n";
 
             my @histogram = (0) x 100;
@@ -1972,7 +1971,7 @@ sub visualize_data {
     $temp_file = "__temp_data_" . $filename;
     unlink $temp_file if -e $temp_file;
     open OUTPUT, ">$temp_file"
-           or die "Unable to open a temp file in this directory: $!\n";
+           or die "Unable to open a temp file in this directory: $!";
     foreach my $datapoint (values %visualization_data) {
         print OUTPUT "@$datapoint";
         print OUTPUT "\n";
@@ -1988,7 +1987,7 @@ sub visualize_data {
     } elsif ($visualization_data_field_width == 2) {
         $arg_string = "\"$temp_file\" using 1:2 title $plot_title with points lt -1 pt 1";
     } elsif ($visualization_data_field_width == 1 ) {
-        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!";
         my @all_data = <INPUT>;
         close INPUT;
         @all_data = map {chomp $_; $_} @all_data;
@@ -2005,7 +2004,7 @@ sub visualize_data {
         my $localfilename = basename($filename);
         my $temp_file = "__temp1dhist_" .  $localfilename;
         unlink $temp_file if -e $temp_file;
-        open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!";
         print OUTPUT "Xstep histval\n";
         my @histogram = (0) x 100;
         foreach my $i (0..@all_data-1) {
@@ -2065,7 +2064,7 @@ sub plot_hardcopy_data {
     $temp_file = "__temp_data_" . $filename;
     unlink $temp_file if -e $temp_file;
     open OUTPUT, ">$temp_file"
-           or die "Unable to open a temp file in this directory: $!\n";
+           or die "Unable to open a temp file in this directory: $!";
     foreach my $datapoint (values %visualization_data) {
         print OUTPUT "@$datapoint";
         print OUTPUT "\n";
@@ -2082,7 +2081,7 @@ sub plot_hardcopy_data {
     } elsif ($visualization_data_field_width == 2) {
         $arg_string = "\"$temp_file\" using 1:2 title $plot_title with points lt -1 pt 1";
     } elsif ($visualization_data_field_width == 1 ) {
-        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open INPUT, "$temp_file" or die "Unable to open a temp file in this directory: $!";
         my @all_data = <INPUT>;
         close INPUT;
         @all_data = map {chomp $_; $_} @all_data;
@@ -2099,7 +2098,7 @@ sub plot_hardcopy_data {
         my $localfilename = basename($filename);
         my $temp_file = "__temp1dhist_" .  $localfilename;
         unlink $temp_file if -e $temp_file;
-        open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!\n";
+        open OUTPUT, ">$temp_file" or die "Unable to open a temp file in this directory: $!";
         print OUTPUT "Xstep histval\n";
         my @histogram = (0) x 100;
         foreach my $i (0..@all_data-1) {
@@ -2282,7 +2281,7 @@ sub get_index_at_value {
 sub vector_equal {
     my $vec1 = shift;
     my $vec2 = shift;
-    die "wrong data types for distance calculation\n" if @$vec1 != @$vec2;
+    die "wrong data types for distance calculation" if @$vec1 != @$vec2;
     foreach my $i (0..@$vec1-1){
         return 0 if $vec1->[$i] != $vec2->[$i];
     }
@@ -2637,10 +2636,11 @@ sub matrix_trace {
 1;
 
 =pod
+
 =head1 NAME
 
-Algorithm::ExpectationMaximization -- A pure-Perl implementation for clustering
-numerical multi-dimensional data with the Expectation-Maximization algorithm.
+Algorithm::ExpectationMaximization -- A Perl module for clustering numerical
+multi-dimensional data with the Expectation-Maximization algorithm.
 
 =head1 SYNOPSIS
 
@@ -2668,7 +2668,6 @@ numerical multi-dimensional data with the Expectation-Maximization algorithm.
                                       max_em_iterations   => 300,
                                       seeding             => 'random',
                                       terminal_output     => 1,
-                                      debug               => 0,
                   );
  
   #  Note the choice for `seeding'. The choice `random' means that the clusterer will
@@ -2693,7 +2692,6 @@ numerical multi-dimensional data with the Expectation-Maximization algorithm.
                                       seeding             => 'manual',
                                       seed_tags           => ['a26', 'b53', 'c49'],
                                       terminal_output     => 1,
-                                      debug               => 0,
                                     );
 
   #  This example call to the constructor also illustrates how you can inject class
@@ -2813,6 +2811,9 @@ numerical multi-dimensional data with the Expectation-Maximization algorithm.
 
 =head1 CHANGES
 
+Version 1.21 incorporates minor code clean up.  Overall, the module implementation
+remains unchanged.
+
 Version 1.2 allows the module to also be used for 1-D data.  The visualization code
 for 1-D shows the clusters through their histograms.
 
@@ -2855,9 +2856,9 @@ prior associated with the Gaussian. Now let's say you expect to see six Gaussian
 your data.  What that means is that you would want the values for 59 variables
 (remember the unit-summation constraint on the class priors which reduces the overall
 number of variables by one) to be estimated by the algorithm that seeks to discover
-the clusters in your data.  What's amazing is that despite the large number of
-variables that are being simultaneously optimized, the chances are that the EM
-algorithm will give you a good approximation to the right answer.
+the clusters in your data.  What's amazing is that, despite the large number of
+variables that must be optimized simultaneously, the EM algorithm will very likely
+give you a good approximation to the right answer.
 
 At its core, EM depends on the notion of unobserved data and the averaging of the
 log-likelihood of the data actually observed over all admissible probabilities for
@@ -2869,7 +2870,7 @@ modeled as a Gaussian mixture, it turns out that the best way to think of the
 unobserved data is in terms of a sequence of random variables, one for each observed
 data point, whose values dictate the selection of the Gaussian for that data point.
 This point is explained in great detail in my on-line tutorial at
-L<https://engineering.purdue.edu/kak/ExpectationMaximization.pdf>.
+L<https://engineering.purdue.edu/kak/Tutorials/ExpectationMaximization.pdf>.
 
 The EM algorithm in our context reduces to an iterative invocation of the following
 steps: (1) Given the current guess for the means and the covariances of the different
@@ -2952,7 +2953,6 @@ the algorithm is:
                                 max_em_iterations   => 300,
                                 seeding             => 'random',
                                 terminal_output     => 1,
-                                debug               => 0,
                     );
 
 where C<K> is the expected number of clusters and
@@ -3000,7 +3000,6 @@ looks like
                                 seeding             => 'manual',
                                 seed_tags           => ['a26', 'b53', 'c49'],
                                 terminal_output     => 1,
-                                debug               => 0,
                     );
 
 where the option C<seed_tags> is set to an anonymous array
@@ -3327,7 +3326,7 @@ a loop and check the value of the quality measures for each value of C<K>.
 
 If you would like to see some results that have been obtained with this module, check
 out Section 7 of the report
-L<https://engineering.purdue.edu/kak/ExpectationMaximization.pdf>.
+L<https://engineering.purdue.edu/kak/Tutorials/ExpectationMaximization.pdf>.
 
 =head1 THE C<examples> DIRECTORY
 
@@ -3463,19 +3462,40 @@ the string 'Algorithm EM' in the subject line.
 
 =head1 INSTALLATION
 
-The usual
+Download the archive from CPAN in any directory of your choice.  Unpack the archive
+with a command that on a Linux machine would look like:
+
+    tar zxvf Algorithm-ExpectationMaximization-1.21.tar.gz
+
+This will create an installation directory for you whose name will be
+C<Algorithm-ExpectationMaximization-1.21>.  Enter this directory and execute the
+following commands for a standard install of the module if you have root privileges:
 
     perl Makefile.PL
     make
     make test
-    make install
+    sudo make install
 
-if you have root access.  If not, 
+If you do not have root privileges, you can carry out a non-standard install the
+module in any directory of your choice by:
 
     perl Makefile.PL prefix=/some/other/directory/
     make
     make test
     make install
+
+With a non-standard install, you may also have to set your PERL5LIB environment
+variable so that this module can find the required other modules. How you do that
+would depend on what platform you are working on.  In order to install this module in
+a Linux machine on which I use tcsh for the shell, I set the PERL5LIB environment
+variable by
+
+    setenv PERL5LIB /some/other/directory/lib64/perl5/:/some/other/directory/share/perl5/
+
+If I used bash, I'd need to declare:
+
+    export PERL5LIB=/some/other/directory/lib64/perl5/:/some/other/directory/share/perl5/
+
 
 =head1 ACKNOWLEDGMENTS
 
@@ -3494,7 +3514,7 @@ subject line to get past my spam filter.
 This library is free software; you can redistribute it and/or modify it under the
 same terms as Perl itself.
 
- Copyright 2013 Avinash Kak
+ Copyright 2014 Avinash Kak
 
 =cut
 
