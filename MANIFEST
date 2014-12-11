@@ -16,9 +16,7 @@ examples/mydatafile4.dat
 examples/mydatafile5.dat
 examples/mydatafile6.dat
 examples/mydatafile7.dat
-examples/naive_bayes_cluster1.dat
-examples/naive_bayes_cluster2.dat
-examples/naive_bayes_cluster3.dat
+examples/sphericaldata.csv
 examples/param1.txt
 examples/param2.txt
 examples/param3.txt
@@ -26,9 +24,6 @@ examples/param4.txt
 examples/param5.txt
 examples/param6.txt
 examples/param7.txt
-examples/posterior_prob_cluster1.dat
-examples/posterior_prob_cluster2.dat
-examples/posterior_prob_cluster3.dat
 examples/posterior_prob_plot.png
 examples/README
 examples/save_example_1_cluster_plot.png

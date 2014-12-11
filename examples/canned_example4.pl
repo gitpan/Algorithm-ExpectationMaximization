@@ -9,6 +9,8 @@ use Algorithm::ExpectationMaximization;
 
 
 my $datafile = "mydatafile4.dat";  
+#my $datafile = "sphericaldata.csv"; 
+
 
 my $mask = "N111";  
 

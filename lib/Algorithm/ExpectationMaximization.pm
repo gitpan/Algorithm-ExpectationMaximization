@@ -20,7 +20,7 @@ use Graphics::GnuplotIF;
 use Math::GSL::Matrix;
 use Scalar::Util 'blessed';
 
-our $VERSION = '1.21';
+our $VERSION = '1.22';
 
 # from perl docs:
 my $_num_regex =  '^[+-]?\ *(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$'; 
@@ -61,7 +61,55 @@ sub new {
     }, $class;
 }
 
+
 sub read_data_from_file {
+    my $self = shift;
+    my $filename = $self->{_datafile};
+    $self->read_data_from_file_csv() if $filename =~ /.csv$/;
+    $self->read_data_from_file_dat() if $filename =~ /.dat$/;
+}
+
+sub read_data_from_file_csv {
+    my $self = shift;
+    my $numregex =  '[+-]?\ *(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?';
+    my $filename = $self->{_datafile} || die "you did not specify a file with the data to be clustered";
+    my $mask = $self->{_mask};
+    my @mask = split //, $mask;
+    $self->{_data_dimensions} = scalar grep {$_ eq '1'} @mask;
+    print "data dimensionality:  $self->{_data_dimensions} \n"if $self->{_terminal_output};
+    open FILEIN, $filename or die "Unable to open $filename: $!";
+    die("Aborted. get_training_data_csv() is only for CSV files") unless $filename =~ /\.csv$/;
+    local $/ = undef;
+    my @all_data = split /\s+/, <FILEIN>;
+    my %data_hash = ();
+    my @data_tags = ();
+    foreach my $record (@all_data) {    
+        my @splits = split /,/, $record;
+        die "\nYour mask size (including `N' and 1's and 0's) does not match\n" .
+            "the size of at least one of the data records in the file.\n"
+            unless scalar(@mask) == scalar(@splits);
+        my $record_name = shift @splits;
+        $data_hash{$record_name} = \@splits;
+        push @data_tags, $record_name;
+    }
+    $self->{_data} = \%data_hash;
+    $self->{_data_id_tags} = \@data_tags;
+    $self->{_N} = scalar @data_tags;
+    # Need to make the following call to set the global mean and covariance:
+    # my $covariance =  $self->estimate_mean_and_covariance(\@data_tags);
+    # Need to make the following call to set the global eigenvec eigenval sets:
+    # $self->eigen_analysis_of_covariance($covariance);
+    if ( defined($self->{_K}) && ($self->{_K} > 0) ) {
+        carp "\n\nWARNING: YOUR K VALUE IS TOO LARGE.\n The number of data " .
+             "points must satisfy the relation N > 2xK**2 where K is " .
+             "the number of clusters requested for the clusters to be " .
+             "meaningful $!" 
+                         if ( $self->{_N} < (2 * $self->{_K} ** 2) );
+        print "\n\n\n";
+    }
+}
+
+sub read_data_from_file_dat {
     my $self = shift;
     my $datafile = $self->{_datafile};
     my $mask = $self->{_mask};
@@ -106,7 +154,6 @@ sub read_data_from_file {
              "meaningful $!" 
                          if ( $self->{_N} < (2 * $self->{_K} ** 2) );
     }
-    srand(123456789);
 }
 
 
@@ -1126,9 +1173,9 @@ sub distance2 {
 sub write_naive_bayes_clusters_to_files {
     my $self = shift;
     my @clusters = @{$self->{_clusters}};
-    unlink glob "naive_bayes_cluster*.dat";
+    unlink glob "naive_bayes_cluster*.txt";
     foreach my $i (1..@clusters) {
-        my $filename = "naive_bayes_cluster" . $i . ".dat";
+        my $filename = "naive_bayes_cluster" . $i . ".txt";
         print "Writing cluster $i to file $filename\n"
                             if $self->{_terminal_output};
         open FILEHANDLE, "| sort > $filename" or die "Unable to open file: $!";
@@ -1153,9 +1200,9 @@ sub write_posterior_prob_clusters_above_threshold_to_files {
                                             > $theta;
         }
     }
-    unlink glob "posterior_prob_cluster*.dat";
+    unlink glob "posterior_prob_cluster*.txt";
     foreach my $i (1..@class_distributions) {
-        my $filename = "posterior_prob_cluster" . $i . ".dat";
+        my $filename = "posterior_prob_cluster" . $i . ".txt";
         print "Writing posterior prob cluster $i to file $filename\n"
                             if $self->{_terminal_output};
         open FILEHANDLE, "| sort > $filename" or die "Unable to open file: $!";
@@ -2648,7 +2695,7 @@ multi-dimensional data with the Expectation-Maximization algorithm.
 
   #  First name the data file:
 
-  my $datafile = "mydatafile1.dat";
+  my $datafile = "mydatafile.csv";
 
   #  Next, set the mask to indicate which columns of the datafile to use for
   #  clustering and which column contains a symbolic ID for each data record. For
@@ -2746,8 +2793,8 @@ multi-dimensional data with the Expectation-Maximization algorithm.
 
   #  The clusters are placed in files with names like
 
-         naive_bayes_cluster1.dat
-         naive_bayes_cluster2.dat
+         naive_bayes_cluster1.txt
+         naive_bayes_cluster2.txt
          ...
 
   #  In the same manner, you can write out the posterior probability based possibly
@@ -2759,8 +2806,8 @@ multi-dimensional data with the Expectation-Maximization algorithm.
   #  data elements to place in a cluster.  These clusters are placed in files with
   #  names like
 
-         posterior_prob_cluster1.dat
-         posterior_prob_cluster2.dat
+         posterior_prob_cluster1.txt
+         posterior_prob_cluster2.txt
          ...
 
   # CLUSTER VISUALIZATION:
@@ -2810,6 +2857,8 @@ multi-dimensional data with the Expectation-Maximization algorithm.
 
 
 =head1 CHANGES
+
+Version 1.22 should work with data in CSV files.
 
 Version 1.21 incorporates minor code clean up.  Overall, the module implementation
 remains unchanged.
@@ -3085,8 +3134,8 @@ symbolic names of the data records that belong to the
 cluster corresponding to that file.  The clusters are placed
 in files with names like
 
-    naive_bayes_cluster1.dat
-    naive_bayes_cluster2.dat
+    naive_bayes_cluster1.txt
+    naive_bayes_cluster2.txt
     ...
 
 =item B<return_clusters_with_posterior_probs_above_threshold($theta1):>
@@ -3118,8 +3167,8 @@ threshold C<$theta1> sets the probability threshold for
 deciding which data elements belong to a cluster.  These
 clusters are placed in files with names like
 
-    posterior_prob_cluster1.dat
-    posterior_prob_cluster2.dat
+    posterior_prob_cluster1.txt
+    posterior_prob_cluster2.txt
     ...
 
 =item B<return_individual_class_distributions_above_given_threshold($theta):>
@@ -3288,8 +3337,8 @@ out to each file consists of the symbolic names of the data records that belong 
 the cluster corresponding to that file.  The clusters are placed in files with names
 like
 
-    naive_bayes_cluster1.dat
-    naive_bayes_cluster2.dat
+    naive_bayes_cluster1.txt
+    naive_bayes_cluster2.txt
     ...
 
 The soft clusters on the other hand are created by calling
@@ -3304,8 +3353,8 @@ C<write_posterior_prob_clusters_above_threshold_to_files($theta1)>.
 As with the hard clusters, each cluster is placed in a separate
 file. The filenames for such clusters look like:
 
-    posterior_prob_cluster1.dat
-    posterior_prob_cluster2.dat
+    posterior_prob_cluster1.txt
+    posterior_prob_cluster2.txt
     ...
 
 =head1 WHAT IF THE NUMBER OF CLUSTERS IS UNKNOWN?
@@ -3379,6 +3428,9 @@ C<save_example_4_cluster_plot.png> and C<save_example_4_posterior_prob_plot.png>
 former displaying the hard clusters obtained by using the naive Bayes' classifier and
 the latter showing the soft clusters obtained on the basis of the posterior class
 probabilities at the data points.
+
+You may also wish to run this example on the data in a CSV file in the C<examples>
+directory. The name of the file is C<sphericaldata.csv>.  
 
 =item I<canned_example5.pl>
 
@@ -3465,10 +3517,10 @@ the string 'Algorithm EM' in the subject line.
 Download the archive from CPAN in any directory of your choice.  Unpack the archive
 with a command that on a Linux machine would look like:
 
-    tar zxvf Algorithm-ExpectationMaximization-1.21.tar.gz
+    tar zxvf Algorithm-ExpectationMaximization-1.22.tar.gz
 
 This will create an installation directory for you whose name will be
-C<Algorithm-ExpectationMaximization-1.21>.  Enter this directory and execute the
+C<Algorithm-ExpectationMaximization-1.22>.  Enter this directory and execute the
 following commands for a standard install of the module if you have root privileges:
 
     perl Makefile.PL

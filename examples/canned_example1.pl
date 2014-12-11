@@ -10,6 +10,13 @@ use Algorithm::ExpectationMaximization;
 
 my $datafile = "mydatafile1.dat";              # from param1.txt
 
+
+#  IMPORTANT: You need to set the mask at three different locations in this script.
+#  The one shown below is for reading the data file.  At the next location, the mask
+#  is for visualizing the raw data.  At the third location, the mask is for
+#  visualizing the final clusters.  The mask shown below means that the symbolic data
+#  for each data record is in the first column, and that the next three columns are
+#  to be used for clustering.
 my $mask = "N11";    
 
 my $clusterer = Algorithm::ExpectationMaximization->new(
@@ -24,6 +31,7 @@ my $clusterer = Algorithm::ExpectationMaximization->new(
 
 $clusterer->read_data_from_file();
 
+# For visualizing the raw data:
 my $data_visualization_mask = "11";
 $clusterer->visualize_data($data_visualization_mask);
 $clusterer->plot_hardcopy_data($data_visualization_mask);
@@ -71,7 +79,7 @@ foreach my $index (0..@$class_distributions-1) {
 }
 print "----------------------------------------------------\n\n";
 
-# VISUALIZATION:
+# CLUSTER VISUALIZATION:
 
 my $visualization_mask = "11"; 
 
